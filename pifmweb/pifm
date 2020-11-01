@@ -1,0 +1,11 @@
+#!/bin/bash
+trap 'kill -TERM $PID' TERM
+
+/usr/bin/sox -t mp3 "$1" -t wav - firfit /home/pi/bin/PreEmphasis.ff \
+| /home/pi/PiFmRds-master/src/pi_fm_rds -freq 106.9 -audio - &
+
+PID=$!
+wait $PID
+trap - TERM INT
+wait $PID
+EXIT_STATUS=$?

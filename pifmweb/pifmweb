@@ -1,0 +1,128 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          pifmweb
+# Required-Start:    $local_fs $remote_fs $network
+# Required-Stop:     $local_fs $remote_fs $network
+# Should-Start:      $named
+# Should-Stop:       $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start PiFmWeb.
+# Description:       Start the PiFmWeb database server.
+### END INIT INFO
+
+USERNAME=root
+JAR_DIR=/home/pi/bin
+JAR_FILE=$JAR_DIR/pifmweb.jar
+JAVA_PID=/var/run/pifmweb.pid
+JAVA_EXEC=/usr/lib/jvm/jdk/bin/java
+JAVA_OPTS="-ea -Djava.awt.headless=true"
+
+if [ `id -u` -ne 0 ]; then
+    echo "You need root privileges to run this script."
+    exit 1
+fi
+
+# Make sure the service is started with system locale
+if [ -r /etc/default/locale ]; then
+    . /etc/default/locale
+    export LANG
+fi
+
+checkStatus() {
+    start-stop-daemon --test --start --pidfile $JAVA_PID \
+        --user $USERNAME --exec "$JAVA_EXEC" >/dev/null 2>&1
+
+    return "$?"
+}
+
+startService() {
+    checkStatus
+
+    if [ "$?" = "0" ]; then
+        start-stop-daemon --start -b -u "$USERNAME" -g "$USERNAME" \
+            -c "$USERNAME" -d "$JAR_DIR" -p "$JAVA_PID" -m \
+            -x $JAVA_EXEC -- $JAVA_OPTS -jar $JAR_FILE
+
+        echo "It has been started with the PID `cat $JAVA_PID`."
+    else
+        echo "It is already running with the PID `cat $JAVA_PID`."
+    fi
+}
+
+stopService() {
+    if [ -f "$JAVA_PID" ]; then
+        start-stop-daemon --stop --pidfile "$JAVA_PID" \
+            --user "$USERNAME" --retry=TERM/20/KILL/5 >/dev/null
+
+        if [ $? -eq 0 ]; then
+            echo "It has stopped."
+        elif [ $? -eq 1 ]; then
+            echo "It is not running, but the PID file exists, cleaning up."
+        elif [ $? -eq 3 ]; then
+            echo "Failed to stop (PID `cat $JAVA_PID`)."
+            exit 1
+        fi
+
+        rm -f $JAVA_PID
+    else
+        echo "It is not running."
+    fi
+}
+
+restartService() {
+    stopService
+    startService
+}
+
+statusService() {
+    checkStatus
+
+    if [ "$?" = "0" ]; then
+        if [ -f "$JAVA_PID" ]; then
+            echo "It is not running, but the PID file exists."
+            exit 1
+        else
+            echo "It is not running."
+            exit 3
+        fi
+    else
+        echo "It is running with pid `cat $JAVA_PID`."
+    fi
+}
+
+respawnService() {
+    checkStatus
+
+    if [ "$?" = "0" ] && [ -f "$JAVA_PID" ]; then
+        echo "PiFmWeb is not running, but pid file exists."
+        restartService
+    fi
+}
+
+case "$1" in
+start)
+    startService
+;;
+stop)
+    stopService
+;;
+restart)
+    restartService
+;;
+force-reload)
+    restartService
+;;
+status)
+    statusService
+;;
+respawn)
+    respawnService
+;;
+*)
+    echo "Usage: $0 {start|stop|restart|status|respawn}"
+    exit 1
+esac
+
+exit 0
