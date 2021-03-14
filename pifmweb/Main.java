@@ -1,3 +1,7 @@
+/*
+ * Released under the MIT License.
+ * Copyright 2020 Oscar Vega-Gisbert.
+ */
 package pifmweb;
 
 import java.io.*;
